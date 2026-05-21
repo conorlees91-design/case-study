@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lattice Review · Chen, M. &amp; D. · TY 2025</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root {
+    --ink: #0b1220;
+    --ink-2: #1e293b;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --bg: #f6f7fb;
+    --brand: #2b3a67;
+    --brand-2: #3b4f8f;
+    --ai: #6d28d9;
+    --ai-bg: #f5f3ff;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+    --crit: #b91c1c;
+    --crit-bg: #fef2f2;
+    --ok: #047857;
+    --ok-bg: #ecfdf5;
+    --info: #1d4ed8;
+    --info-bg: #eff6ff;
+  }
+  html, body, #root { height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .num { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .focus-ring:focus { outline: 2px solid var(--brand); outline-offset: 2px; }
+  /* Subtle inner grid for the 1040 form */
+  .ledger-row:hover { background: #f8fafc; }
+  .ledger-row.active { background: #eef2ff; box-shadow: inset 3px 0 0 var(--brand); }
+  .pulse-dot {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  /* Document mockup background */
+  .doc-paper {
+    background-color: #fff;
+    background-image:
+      linear-gradient(rgba(15,23,42,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15,23,42,0.04) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  /* Slide-in panel */
+  .slide-in { animation: slideIn .18s ease-out; }
+  @keyframes slideIn { from { transform: translateX(12px); opacity: 0;} to { transform: translateX(0); opacity: 1;} }
+  .fade-in { animation: fadeIn .15s ease-out; }
+  @keyframes fadeIn { from { opacity: 0;} to { opacity: 1;} }
+  /* Confidence bar */
+  .conf-bar { height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; }
+  .conf-bar > div { height: 100%; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect, useRef } = React;
+
+/* ============================================================
+   MOCK RETURN DATA
+   ============================================================ */
+
+const CLIENT = {
+  name: "Margaret & David Chen",
+  shortName: "Chen, M. & D.",
+  filingStatus: "Married Filing Jointly",
+  ssnPrimary: "•••-••-4521",
+  ssnSpouse: "•••-••-7832",
+  taxYear: 2025,
+  preparedBy: "Alex Patel, EA",
+  reviewer: "Jamie Okafor, CPA (you)",
+  manager: "Priya Raghavan, CPA",
+  preparedDate: "2026-03-12",
+  extensionFiled: true,
+  extendedDeadline: "2026-10-15",
+  software: "CCH Axcess Tax",
+  engagement: "ENG-2025-04417",
+  feeBudget: "8.5 hrs",
+  feeUsed: "6.2 hrs",
+};
+
+const SUMMARY = {
+  totalIncome: 274_254.69,
+  agi: 267_204.69,
+  taxableIncome: 225_024.69,
+  totalTax: 48_920,
+  balance: -6_620,        // negative = owed
+  pyBalance: 1_104,       // refund last year
+  overallStatus: "Ready for review · 3 exceptions",
+  confidence: 0.93,
+  riskAreas: 3,
+  missingDocs: 1,
+  lowConfidenceFields: 4,
+  yoyAnomalies: 2,
+  aiActions: 142,
+  humanEdits: 11,
+  preparerSignoff: true,
+  reviewerSignoff: false,
+  managerSignoff: false,
+};
+
+/* ---------- Line 2b sources (the focus) ---------- */
+const SOURCES_2B = [
+  {
+    id: "src-chase",
+    payer: "JPMorgan Chase Bank, N.A.",
+    payerTin: "13-•••2766",
+    docType: "1099-INT",
+    account: "Premier Checking ••••8421",
+    box1: 4_287.42,
+    box3: 0,
+    box8: 0,
+    fedWithheld: 0,
+    confidence: 0.98,
+    extractedAt: "2026-03-08 09:12:41",
+    source: "Client portal upload (PDF, 1 page)",
+    matchedTo: "Bank statement 12/2025 YTD interest",
+    matchVariance: 0.00,
+    py: 4_102.18,
+    pyDelta: 0.045,
+    flags: [],
+  },
+  {
+    id: "src-fidelity",
+    payer: "Fidelity Brokerage Services LLC",
+    payerTin: "04-•••3613",
+    docType: "1099-INT (consolidated)",
+    account: "Joint Brokerage ••••0192",
+    box1: 12_840.18,
+    box3: 412.06,
+    box8: 0,
+    fedWithheld: 0,
+    confidence: 0.97,
+    extractedAt: "2026-03-08 09:13:02",
+    source: "Direct API pull (Fidelity Tax Data Connector)",
+    matchedTo: "Fidelity Year-End Summary 2025 (page 14)",
+    matchVariance: 0.00,
+    py: 9_803.41,
+    pyDelta: 0.31,
+    flags: [],
+  },
+  {
+    id: "src-wells",
+    payer: "Wells Fargo Bank, N.A.",
+    payerTin: "94-•••0033",
+    docType: "1099-INT",
+    account: "Savings ••••6633",
+    box1: 312.67,
+    box3: 0,
+    box8: 0,
+    fedWithheld: 0,
+    confidence: 0.99,
+    extractedAt: "2026-03-08 09:13:24",
+    source: "Email forward (PDF attachment)",
+    matchedTo: "Auto-matched · routing+acct hash",
+    matchVariance: 0.00,
+    py: 284.10,
+    pyDelta: 0.10,
+    flags: [],
+  },
+  {
+    id: "src-vanguard",
+    payer: "Vanguard Marketing Corporation",
+    payerTin: "23-•••8810",
+    docType: "1099-INT",
+    account: "Federal Money Market ••••4477",
+    box1: 8_945.30,
+    box3: 0,
+    box8: 0,
+    fedWithheld: 0,
+    confidence: 0.95,
+    extractedAt: "2026-03-08 09:13:55",
+    source: "Client portal upload (PDF, 2 pages)",
+    matchedTo: "Vanguard YE statement · account opened 2025-02-14",
+    matchVariance: 0.00,
+    py: 0,
+    pyDelta: null,
+    flags: [
+      { level: "med", label: "New account · no PY baseline" },
+      { level: "med", label: "Single source drives 78% of YoY increase" },
+    ],
+  },
+  {
+    id: "src-sfcu",
+    payer: "Stanford Federal Credit Union",
+    payerTin: "94-•••1144",
+    docType: "1099-INT",
+    account: "Money Market ••••0021",
+    box1: 89.12,
+    box3: 0,
+    box8: 0,
+    fedWithheld: 0,
+    confidence: 0.78,
+    extractedAt: "2026-03-08 09:14:11",
+    source: "Client portal upload (PDF, scan quality: low)",
+    matchedTo: "Member portal interest summary (manual reconciliation)",
+    matchVariance: 0.00,
+    py: 76.21,
+    pyDelta: 0.17,
+    flags: [
+      { level: "med", label: "OCR ambiguity · Box 1 vs Box 8 (resolved)" },
+    ],
+  },
+];
+
+const TOTAL_2B = SOURCES_2B.reduce((s, x) => s + x.box1, 0);   // 26,474.69
+const PY_2B = SOURCES_2B.reduce((s, x) => s + x.py, 0);        // 14,265.90
+
+/* ---------- AI agent actions for Line 2b ---------- */
+const AI_ACTIONS_2B = [
+  { t: "2026-03-08 09:12:18", agent: "doc-ingest", text: "Ingested 5 documents tagged 1099-INT from client portal and Fidelity API connector.", level: "info" },
+  { t: "2026-03-08 09:12:41", agent: "extract", text: "Extracted Box 1 (Interest income), Box 3 (US obligations), Box 8 (Tax-exempt) from each payer. Two-pass: vision OCR + structured LLM verification.", level: "info" },
+  { t: "2026-03-08 09:13:30", agent: "reconcile", text: "Cross-referenced Fidelity Box 1 to Fidelity Year-End Summary §Interest (p.14): $12,840.18 — exact match.", level: "ok" },
+  { t: "2026-03-08 09:14:02", agent: "extract", text: "Stanford FCU 1099-INT: low-quality scan. Initial pass extracted $89.12 in both Box 1 and Box 8. Re-ran with payer-specific template (SFCU rarely issues tax-exempt). Resolved to Box 1=$89.12, Box 8=$0.", level: "warn" },
+  { t: "2026-03-08 09:14:18", agent: "policy", text: "Verified SFCU is a non-bank credit union; interest is taxable per IRC §61. Tax-exempt municipal interest would require Form 1099-OID or specific muni issuer, not present.", level: "info" },
+  { t: "2026-03-08 09:14:33", agent: "aggregate", text: "Aggregated 5 sources → Line 2b = $26,474.69. Also aggregated Box 3 (US Treasury obligations) = $412.06 for Schedule B Part I memo.", level: "ok" },
+  { t: "2026-03-08 09:14:40", agent: "map", text: "Mapped to CCH Axcess: Interest > Detail > Source = 5 rows under taxpayer/joint. Field path: INT.1099INT[].B1 → 1040.Line2b. No manual override applied.", level: "info" },
+  { t: "2026-03-08 09:14:52", agent: "anomaly", text: "Year-over-year change: $14,265.90 → $26,474.69 (+85.6%). Threshold 25% triggered. Decomposed: Vanguard MM new (+$8,945.30, 73% of delta), Fidelity organic growth (+$3,036.77, 25%), other (+$229, 2%).", level: "warn" },
+  { t: "2026-03-08 09:15:04", agent: "context", text: "Examined client deposit ledger (bank-feed snapshot from portal). Identified $250K transfer from Joint Brokerage to Vanguard MM on 2025-02-14 — consistent with new MM account opening and observed yield (~3.95% blended).", level: "info" },
+  { t: "2026-03-08 09:15:11", agent: "anomaly", text: "Anomaly classified: 'explainable · new-account'. Confidence 0.92. Reviewer flag retained pending sign-off.", level: "warn" },
+];
+
+/* ---------- Human edits for Line 2b ---------- */
+const EDITS_2B = [
+  {
+    t: "2026-03-09 14:23:07",
+    actor: "Alex Patel, EA (preparer)",
+    text: "Confirmed Vanguard MM account opening doc dated 2025-02-14 in client docs (filename: vanguard_acct_open_redacted.pdf). Account is in joint name. Cleared 'new account · KYC' subflag; left YoY anomaly for reviewer.",
+    field: null,
+    before: null,
+    after: null,
+  },
+  {
+    t: "2026-03-11 10:08:55",
+    actor: "Alex Patel, EA (preparer)",
+    text: "Added preparer note re: Stanford FCU Box 1/8 OCR resolution. No value change.",
+    field: null,
+    before: null,
+    after: null,
+  },
+  {
+    t: "2026-03-11 16:41:22",
+    actor: "Alex Patel, EA (preparer)",
+    text: "Schedule B Part III foreign account question answered No based on client questionnaire response Q14. No foreign-source interest detected in any 1099-INT.",
+    field: "Sch B · Part III · Q7a",
+    before: "—",
+    after: "No",
+  },
+];
+
+/* ---------- Form 1040 lines (a representative subset) ---------- */
+const LINES = [
+  // section: income
+  { id: "1a",  label: "Total amount from Form(s) W-2, box 1",        value: 198_420.00, py: 184_360.00, conf: 0.99, status: "ok", sources: 2, section: "income", note: "2 W-2s (David @ Anthropic, Margaret @ Stanford Health Care)" },
+  { id: "1z",  label: "Add lines 1a through 1h (total wages)",       value: 198_420.00, py: 184_360.00, conf: 0.99, status: "ok", section: "income", calc: true },
+  { id: "2a",  label: "Tax-exempt interest",                          value: 1_247.00,    py: 1_180.00,   conf: 0.96, status: "ok", sources: 2, section: "income" },
+  { id: "2b",  label: "Taxable interest",                             value: TOTAL_2B,    py: PY_2B,      conf: 0.91, status: "review", sources: 5, section: "income", focus: true, note: "+85.6% YoY · 1 new account" },
+  { id: "3a",  label: "Qualified dividends",                          value: 8_920.00,    py: 7_810.00,   conf: 0.97, status: "ok", sources: 3, section: "income" },
+  { id: "3b",  label: "Ordinary dividends",                           value: 11_340.00,   py: 9_902.00,   conf: 0.92, status: "watch", sources: 3, section: "income", note: "Fidelity supplemental 1099-DIV pending" },
+  { id: "4a",  label: "IRA distributions",                            value: 0,           py: 0,          conf: 1.00, status: "ok", section: "income" },
+  { id: "4b",  label: "  Taxable amount",                             value: 0,           py: 0,          conf: 1.00, status: "ok", section: "income" },
+  { id: "5a",  label: "Pensions and annuities",                       value: 0,           py: 0,          conf: 1.00, status: "ok", section: "income" },
+  { id: "5b",  label: "  Taxable amount",                             value: 0,           py: 0,          conf: 1.00, status: "ok", section: "income" },
+  { id: "6a",  label: "Social security benefits",                     value: 0,           py: 0,          conf: 1.00, status: "ok", section: "income" },
+  { id: "6b",  label: "  Taxable amount",                             value: 0,           py: 0,          conf: 1.00, status: "ok", section: "income" },
+  { id: "7",   label: "Capital gain or (loss). Attach Sch. D",        value: 32_840.00,   py: 18_220.00,  conf: 0.84, status: "watch", sources: 1, section: "income", note: "3 lots · low basis confidence" },
+  { id: "8",   label: "Other income from Schedule 1, line 10",        value: 5_140.00,    py: 4_980.00,   conf: 0.94, status: "ok", sources: 1, section: "income", note: "S-Corp K-1 (DC Consulting LLC)" },
+  { id: "9",   label: "Add lines 1z, 2b, 3b, 4b, 5b, 6b, 7, and 8 — Total income", value: 274_254.69, py: 233_590.00, conf: 0.94, status: "ok", section: "income", calc: true },
+
+  // adjustments / AGI
+  { id: "10",  label: "Adjustments to income from Schedule 1, line 26", value: 7_050.00,  py: 6_400.00,   conf: 0.99, status: "ok", section: "agi", note: "HSA + ½ SE tax" },
+  { id: "11",  label: "Adjusted gross income",                        value: 267_204.69,  py: 227_190.00, conf: 0.94, status: "ok", section: "agi", calc: true },
+
+  // deductions
+  { id: "12",  label: "Standard or itemized deductions (Sch A)",       value: 42_180.00,  py: 38_910.00,  conf: 0.89, status: "watch", sources: 14, section: "deductions", note: "1 missing receipt · $2,400 charitable" },
+  { id: "13",  label: "Qualified business income deduction",          value: 0,           py: 0,          conf: 1.00, status: "ok", section: "deductions" },
+  { id: "14",  label: "Add lines 12 and 13",                          value: 42_180.00,   py: 38_910.00,  conf: 0.89, status: "ok", section: "deductions", calc: true },
+  { id: "15",  label: "Taxable income",                                value: 225_024.69, py: 188_280.00, conf: 0.93, status: "ok", section: "deductions", calc: true },
+
+  // tax
+  { id: "16",  label: "Tax (Tax Tables / Schedule D Worksheet)",      value: 44_807.00,   py: 33_864.00,  conf: 0.99, status: "ok", section: "tax", calc: true },
+  { id: "17",  label: "Amount from Schedule 2, line 3",                value: 0,           py: 0,          conf: 1.00, status: "ok", section: "tax" },
+  { id: "18",  label: "Add lines 16 and 17",                          value: 44_807.00,   py: 33_864.00,  conf: 0.99, status: "ok", section: "tax", calc: true },
+  { id: "19",  label: "Child tax credit / credit for other dependents", value: 0,         py: 0,          conf: 1.00, status: "ok", section: "tax" },
+  { id: "20",  label: "Amount from Schedule 3, line 8",                value: 0,           py: 0,          conf: 1.00, status: "ok", section: "tax" },
+  { id: "23",  label: "Other taxes from Schedule 2, line 21",          value: 4_113.00,    py: 3_410.00,   conf: 0.96, status: "ok", section: "tax", note: "Add'l Medicare + NIIT" },
+  { id: "24",  label: "Total tax",                                     value: 48_920.00,   py: 37_274.00,  conf: 0.98, status: "ok", section: "tax", calc: true },
+
+  // payments / refund
+  { id: "25a", label: "Federal income tax withheld from W-2s",         value: 36_073.00,   py: 33_180.00,  conf: 0.99, status: "ok", sources: 2, section: "payments" },
+  { id: "26",  label: "2025 estimated tax payments",                   value: 6_227.00,    py: 5_198.00,   conf: 1.00, status: "ok", sources: 4, section: "payments", note: "4 EFTPS confirmations matched" },
+  { id: "33",  label: "Add lines 25a through 32 — Total payments",     value: 42_300.00,   py: 38_378.00,  conf: 0.99, status: "ok", section: "payments", calc: true },
+  { id: "37",  label: "Amount you owe",                                value: 6_620.00,    py: 0,          conf: 0.99, status: "ok", section: "payments", calc: true, note: "PY: $1,104 refund" },
+];
+
+/* ---------- Dashboard exceptions ---------- */
+const EXCEPTIONS = [
+  { id: "ex-1", lineId: "2b",  severity: "high",   title: "Taxable interest up 85.6% YoY",         summary: "5 sources aggregated to $26,474.69 (PY $14,265.90). Single new Vanguard MM account drives 73% of delta. AI classified as explainable; reviewer sign-off required.", icon: "trend" },
+  { id: "ex-2", lineId: "12",  severity: "medium", title: "Missing receipt · $2,400 charitable",   summary: "Sch A line 11. Donor-advised fund grant to UCSF Foundation on 2025-11-04 has bank-transfer evidence but no contemporaneous written acknowledgment per IRC §170(f)(8).", icon: "doc" },
+  { id: "ex-3", lineId: "7",    severity: "medium", title: "Schedule D · 3 lots, low basis confidence", summary: "Robinhood transferred basis missing for 3 lots (META 2021, NVDA 2020, AMZN 2019). AI estimated using historical price + first-in-first-out; manual confirmation recommended.", icon: "trend" },
+  { id: "ex-4", lineId: "3b",  severity: "low",    title: "Fidelity supplemental 1099-DIV pending", summary: "Original 1099-DIV received 2026-02-12. Fidelity issued supplemental notice 2026-03-10 (foreign tax credit reclass). Awaiting client confirmation of final values.", icon: "wait" },
+  { id: "ex-5", lineId: "2b",  severity: "low",    title: "Stanford FCU 1099-INT · OCR resolution applied", summary: "Low-quality scan, Box 1/Box 8 ambiguity. AI resolved to Box 1 = $89.12 using payer-specific template. Verify on review.", icon: "ai" },
+];
+
+/* ---------- YoY analytics summary ---------- */
+const YOY = [
+  { lineId: "1z",  label: "Wages (1z)",            cy: 198_420, py: 184_360, pct: 0.076, status: "ok"   },
+  { lineId: "2b",  label: "Taxable interest (2b)", cy: TOTAL_2B, py: PY_2B,   pct: 0.856, status: "high" },
+  { lineId: "3b",  label: "Ordinary dividends (3b)", cy: 11_340, py: 9_902,   pct: 0.145, status: "ok"   },
+  { lineId: "7",    label: "Capital gain (7)",      cy: 32_840,  py: 18_220,  pct: 0.802, status: "med"  },
+  { lineId: "11",  label: "AGI (11)",               cy: 267_204.69, py: 227_190, pct: 0.176, status: "ok" },
+];
+
+/* ---------- Document inventory ---------- */
+const DOCS = [
+  { id: "d1", name: "W-2 · Anthropic · David Chen",        type: "W-2",     status: "ingested", date: "2026-01-31", linked: ["1a"] },
+  { id: "d2", name: "W-2 · Stanford Health · M. Chen",     type: "W-2",     status: "ingested", date: "2026-01-29", linked: ["1a"] },
+  { id: "d3", name: "1099-INT · JPMorgan Chase",           type: "1099-INT", status: "ingested", date: "2026-01-26", linked: ["2b"] },
+  { id: "d4", name: "1099-INT · Fidelity (Consolidated)",  type: "1099-INT", status: "ingested", date: "2026-02-09", linked: ["2b","3a","3b"] },
+  { id: "d5", name: "1099-INT · Wells Fargo",              type: "1099-INT", status: "ingested", date: "2026-01-22", linked: ["2b"] },
+  { id: "d6", name: "1099-INT · Vanguard MM",              type: "1099-INT", status: "ingested", date: "2026-02-04", linked: ["2b"] },
+  { id: "d7", name: "1099-INT · Stanford FCU",             type: "1099-INT", status: "ingested", date: "2026-02-11", linked: ["2b"], lowQuality: true },
+  { id: "d8", name: "1099-DIV · Fidelity (Consolidated)",  type: "1099-DIV", status: "ingested", date: "2026-02-09", linked: ["3a","3b"] },
+  { id: "d9", name: "1099-DIV · Fidelity SUPPLEMENTAL",    type: "1099-DIV", status: "pending",  date: "2026-03-10", linked: ["3b"] },
+  { id: "d10", name: "1099-B · Robinhood",                 type: "1099-B",   status: "ingested", date: "2026-02-18", linked: ["7"] },
+  { id: "d11", name: "K-1 · DC Consulting LLC",            type: "K-1",      status: "ingested", date: "2026-03-04", linked: ["8"] },
+  { id: "d12", name: "Charitable acknowledgments (×7)",   type: "Sch A",    status: "ingested", date: "2026-02-20", linked: ["12"] },
+  { id: "d13", name: "UCSF Foundation acknowledgment",     type: "Sch A",    status: "missing",  date: null,         linked: ["12"] },
+];
+
+/* ============================================================
+   UTIL
+   ============================================================ */
+const fmt = (n) => n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt0 = (n) => n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const pct = (n) => n == null ? "—" : `${(n * 100).toFixed(1)}%`;
+const signedPct = (n) => n == null ? "—" : (n >= 0 ? "+" : "") + (n * 100).toFixed(1) + "%";
+
+const sevColor = {
+  high:   { txt: "text-red-700",    bg: "bg-red-50",    bd: "border-red-200",    dot: "bg-red-600" },
+  medium: { txt: "text-amber-800",  bg: "bg-amber-50",  bd: "border-amber-200",  dot: "bg-amber-500" },
+  med:    { txt: "text-amber-800",  bg: "bg-amber-50",  bd: "border-amber-200",  dot: "bg-amber-500" },
+  low:    { txt: "text-blue-800",   bg: "bg-blue-50",   bd: "border-blue-200",   dot: "bg-blue-500" },
+  ok:     { txt: "text-emerald-700",bg: "bg-emerald-50",bd: "border-emerald-200",dot: "bg-emerald-500" },
+  watch:  { txt: "text-amber-800",  bg: "bg-amber-50",  bd: "border-amber-200",  dot: "bg-amber-500" },
+  review: { txt: "text-red-700",    bg: "bg-red-50",    bd: "border-red-200",    dot: "bg-red-600" },
+  info:   { txt: "text-blue-800",   bg: "bg-blue-50",   bd: "border-blue-200",   dot: "bg-blue-500" },
+  warn:   { txt: "text-amber-800",  bg: "bg-amber-50",  bd: "border-amber-200",  dot: "bg-amber-500" },
+};
+
+/* ============================================================
+   ICONS (inline SVG, minimal set)
+   ============================================================ */
+const Icon = ({ name, className = "w-4 h-4" }) => {
+  const paths = {
+    dashboard: <><path d="M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z"/></>,
+    form: <><path d="M4 4h16v16H4z M8 8h8M8 12h8M8 16h5"/></>,
+    docs: <><path d="M6 2h9l5 5v15H6zM15 2v5h5"/></>,
+    analytics: <><path d="M3 21V3M3 17l5-4 5 3 8-9"/></>,
+    chevron: <><path d="M9 6l6 6-6 6"/></>,
+    chevronDown: <><path d="M6 9l6 6 6-6"/></>,
+    x: <><path d="M6 6l12 12M18 6L6 18"/></>,
+    check: <><path d="M5 12l5 5 9-11"/></>,
+    alert: <><path d="M12 9v4M12 17h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></>,
+    info: <><circle cx="12" cy="12" r="9"/><path d="M12 8v.01M11 12h1v5h1"/></>,
+    sparkle: <><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4z M19 14l.8 2.2 2.2.8-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/></>,
+    user: <><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></>,
+    link: <><path d="M10 14a4 4 0 0 0 5.66 0l3.54-3.54a4 4 0 0 0-5.66-5.66L12 6.34"/><path d="M14 10a4 4 0 0 0-5.66 0L4.8 13.54a4 4 0 0 0 5.66 5.66L12 17.66"/></>,
+    clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+    pin: <><path d="M12 22V13M5 13h14L17 4H7z"/></>,
+    flag: <><path d="M5 21V4M5 4h13l-2 4 2 4H5"/></>,
+    eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></>,
+    sign: <><path d="M3 17l4-1 11-11a2 2 0 0 1 3 3L10 19l-7 1z"/></>,
+    download: <><path d="M12 3v12M6 11l6 6 6-6M5 21h14"/></>,
+    filter: <><path d="M4 5h16l-6 8v6l-4-2v-4z"/></>,
+    search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></>,
+    diff: <><path d="M9 3v18M5 7l4-4 4 4M19 3v18M15 17l4 4 4-4"/></>,
+    bot: <><rect x="4" y="7" width="16" height="12" rx="2"/><path d="M9 13h.01M15 13h.01M12 3v4M2 13h2M20 13h2"/></>,
+  };
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      {paths[name] || null}
+    </svg>
+  );
+};
+
+/* ============================================================
+   SHARED BITS
+   ============================================================ */
+const Pill = ({ tone = "info", icon, children, className = "" }) => {
+  const c = sevColor[tone] || sevColor.info;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-full border ${c.bg} ${c.txt} ${c.bd} ${className}`}>
+      {icon ? <Icon name={icon} className="w-3 h-3" /> : null}
+      {children}
+    </span>
+  );
+};
+
+const ConfBar = ({ value }) => {
+  const color = value >= 0.95 ? "#047857" : value >= 0.85 ? "#b45309" : "#b91c1c";
+  return (
+    <div className="conf-bar w-16">
+      <div style={{ width: `${value * 100}%`, background: color }} />
+    </div>
+  );
+};
+
+const StatDot = ({ status }) => {
+  const c = sevColor[status] || sevColor.ok;
+  return <span className={`inline-block w-2 h-2 rounded-full ${c.dot}`} />;
+};
+
+const KeyVal = ({ k, v, mono = false }) => (
+  <div className="flex justify-between gap-4 py-1.5 text-[13px] border-b border-slate-100 last:border-0">
+    <div className="text-slate-500">{k}</div>
+    <div className={`text-slate-900 font-medium text-right ${mono ? "num" : ""}`}>{v}</div>
+  </div>
+);
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+function TopBar({ onOpenDiff }) {
+  return (
+    <header className="h-14 shrink-0 flex items-center justify-between px-4 bg-white border-b border-slate-200 z-10">
+      <div className="flex items-center gap-3">
+        <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: "var(--brand)" }}>
+          <Icon name="sparkle" className="w-4 h-4 text-white" />
+        </div>
+        <div className="leading-tight">
+          <div className="text-[13px] font-semibold text-slate-900">Lattice Review</div>
+          <div className="text-[11px] text-slate-500">1040 reviewer workspace · TY {CLIENT.taxYear}</div>
+        </div>
+        <div className="mx-3 h-6 w-px bg-slate-200" />
+        <div className="text-[13px] font-medium text-slate-700">{CLIENT.name}</div>
+        <Pill tone="info">{CLIENT.filingStatus}</Pill>
+        <Pill tone="ok" icon="check">Preparer signed off</Pill>
+        <Pill tone="medium" icon="clock">Extension · due {CLIENT.extendedDeadline}</Pill>
+      </div>
+      <div className="flex items-center gap-2">
+        <button className="text-[12px] text-slate-600 hover:text-slate-900 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100">
+          <Icon name="search" className="w-3.5 h-3.5" /> Find line / source / value
+        </button>
+        <button onClick={onOpenDiff} className="text-[12px] text-slate-700 hover:text-slate-900 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 border border-slate-200">
+          <Icon name="diff" className="w-3.5 h-3.5" /> Compare to PY
+        </button>
+        <button className="text-[12px] text-white flex items-center gap-1.5 px-3 py-1.5 rounded-md" style={{ background: "var(--brand)" }}>
+          <Icon name="sign" className="w-3.5 h-3.5" /> Reviewer sign-off
+        </button>
+        <div className="ml-2 w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-[11px] font-semibold text-slate-700">JO</div>
+      </div>
+    </header>
+  );
+}
+
+/* ============================================================
+   LEFT NAV
+   ============================================================ */
+function LeftNav({ view, setView }) {
+  const Item = ({ id, icon, label, badge }) => (
+    <button
+      onClick={() => setView(id)}
+      className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] rounded-md transition ${
+        view === id ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+      }`}
+    >
+      <Icon name={icon} className="w-4 h-4" />
+      <span className="flex-1 text-left">{label}</span>
+      {badge != null && (
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700">{badge}</span>
+      )}
+    </button>
+  );
+  return (
+    <aside className="w-60 shrink-0 border-r border-slate-200 bg-white px-3 py-4 flex flex-col">
+      <div className="px-2 mb-3">
+        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Engagement</div>
+        <div className="text-[12px] text-slate-700 mt-0.5 num">{CLIENT.engagement}</div>
+        <div className="text-[11px] text-slate-500 mt-0.5">{CLIENT.feeUsed} / {CLIENT.feeBudget} budget</div>
+      </div>
+
+      <div className="space-y-0.5">
+        <Item id="dashboard" icon="dashboard" label="Review dashboard" badge={SUMMARY.riskAreas + SUMMARY.missingDocs} />
+        <Item id="form1040" icon="form" label="Form 1040" badge="2b" />
+        <Item id="schedules" icon="form" label="Schedules" />
+        <Item id="docs" icon="docs" label="Documents" badge={DOCS.filter(d => d.status === "missing").length} />
+        <Item id="analytics" icon="analytics" label="YoY analytics" />
+      </div>
+
+      <div className="mt-6 px-2">
+        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Team</div>
+        <div className="space-y-1.5 text-[12px] text-slate-600">
+          <div className="flex items-center gap-2"><span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-semibold text-slate-700">AP</span> {CLIENT.preparedBy}</div>
+          <div className="flex items-center gap-2"><span className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-[9px] font-semibold text-indigo-700">JO</span> {CLIENT.reviewer}</div>
+          <div className="flex items-center gap-2"><span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-semibold text-slate-700">PR</span> {CLIENT.manager}</div>
+        </div>
+      </div>
+
+      <div className="mt-auto px-2 pt-4 border-t border-slate-100">
+        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1.5">Software target</div>
+        <div className="text-[12px] text-slate-700 font-medium">{CLIENT.software}</div>
+        <div className="text-[11px] text-slate-500 mt-0.5">Sync status · in sync</div>
+      </div>
+    </aside>
+  );
+}
+
+/* ============================================================
+   DASHBOARD VIEW
+   ============================================================ */
+function Dashboard({ onJumpTo }) {
+  return (
+    <div className="p-6 max-w-[1280px] mx-auto fade-in">
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Review dashboard</div>
+          <h1 className="text-[22px] font-semibold text-slate-900 mt-0.5">{CLIENT.name} · TY {CLIENT.taxYear}</h1>
+          <div className="text-[13px] text-slate-500 mt-1">
+            Prepared by {CLIENT.preparedBy} on {CLIENT.preparedDate} · {SUMMARY.aiActions} AI actions · {SUMMARY.humanEdits} human edits
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Pill tone="medium" icon="alert">{SUMMARY.riskAreas} risk areas</Pill>
+          <Pill tone="low" icon="info">{SUMMARY.lowConfidenceFields} low-confidence fields</Pill>
+        </div>
+      </div>
+
+      {/* Top KPI row */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <KpiCard label="AGI" value={fmt0(SUMMARY.agi)} delta="+17.6%" deltaTone="warn" sub="vs. PY $227,190" />
+        <KpiCard label="Total tax" value={fmt0(SUMMARY.totalTax)} delta="+31.2%" deltaTone="warn" sub="vs. PY $37,274" />
+        <KpiCard label="Balance" value={fmt0(Math.abs(SUMMARY.balance))} sub={SUMMARY.balance < 0 ? "Amount owed" : "Refund"} tone={SUMMARY.balance < 0 ? "warn" : "ok"} />
+        <KpiCard label="Return confidence" value={pct(SUMMARY.confidence)} sub="Composite across 142 line items" tone="info" />
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        {/* Left two-thirds: exception queue */}
+        <div className="col-span-2 space-y-4">
+          <Panel
+            title="Exception queue"
+            subtitle="Ordered by reviewer impact. Resolve from here — most items deep-link to the source line and document."
+            right={
+              <div className="flex items-center gap-2 text-[12px] text-slate-500">
+                <button className="flex items-center gap-1 hover:text-slate-900"><Icon name="filter" className="w-3 h-3"/>All severities</button>
+                <span>·</span>
+                <button className="hover:text-slate-900">Group by line</button>
+              </div>
+            }
+          >
+            <div className="divide-y divide-slate-100">
+              {EXCEPTIONS.map(ex => (
+                <ExceptionRow key={ex.id} ex={ex} onJump={() => onJumpTo(ex.lineId)} />
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="Year-over-year movement" subtitle="Composite from current 1040 vs. accepted PY return">
+            <div className="space-y-2">
+              {YOY.map(y => (
+                <div key={y.lineId} className="flex items-center gap-3 py-1.5">
+                  <button onClick={() => onJumpTo(y.lineId)} className="text-[13px] text-slate-700 hover:text-slate-900 font-medium w-44 text-left">
+                    {y.label}
+                  </button>
+                  <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden relative">
+                    <div className="absolute inset-y-0 left-0 bg-slate-300" style={{ width: `${(y.py / Math.max(y.cy, y.py)) * 100}%` }} />
+                    <div className="absolute inset-y-0 left-0 border-r-2 border-slate-900/40" style={{ width: `${(y.py / Math.max(y.cy, y.py)) * 100}%` }} />
+                    <div className="absolute inset-y-0 left-0" style={{ width: `${(y.cy / Math.max(y.cy, y.py)) * 100}%`, background: y.status === "high" ? "rgba(185,28,28,.6)" : y.status === "med" ? "rgba(180,83,9,.6)" : "rgba(30,64,175,.5)", mixBlendMode: "multiply" }} />
+                  </div>
+                  <div className="num text-[12px] text-slate-700 w-28 text-right">{fmt0(y.cy)}</div>
+                  <div className={`num text-[12px] w-16 text-right ${y.status === "high" ? "text-red-700" : y.status === "med" ? "text-amber-700" : "text-slate-500"}`}>{signedPct(y.pct)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-[11px] text-slate-500 flex items-center gap-3">
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-slate-300 rounded-sm"></span>PY</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-slate-700 rounded-sm"></span>CY</span>
+              <span>· Bars normalized to max(CY, PY)</span>
+            </div>
+          </Panel>
+        </div>
+
+        {/* Right third: doc checklist + sign-off */}
+        <div className="space-y-4">
+          <Panel title="Sign-off chain" subtitle="Three-eye review">
+            <div className="space-y-2.5">
+              <SignRow name="Alex Patel · Preparer" role="prep" done date="2026-03-12 16:42" />
+              <SignRow name="Jamie Okafor · Reviewer" role="rev" done={false} note="You" />
+              <SignRow name="Priya Raghavan · Manager" role="mgr" done={false} blocked />
+            </div>
+            <button className="mt-3 w-full text-[12px] font-semibold text-white py-2 rounded-md" style={{ background: "var(--brand)" }}>
+              Resolve 3 exceptions to enable sign-off
+            </button>
+          </Panel>
+
+          <Panel title="Document inventory" subtitle="13 documents · 1 missing">
+            <div className="space-y-1.5 max-h-72 overflow-auto scrollbar-thin pr-1">
+              {DOCS.map(d => (
+                <div key={d.id} className="flex items-center gap-2 py-1.5 text-[12px]">
+                  <Icon name="docs" className={`w-3.5 h-3.5 ${d.status === "missing" ? "text-red-500" : d.status === "pending" ? "text-amber-500" : "text-slate-400"}`} />
+                  <span className="text-slate-700 flex-1 truncate">{d.name}</span>
+                  {d.status === "missing" && <Pill tone="high">missing</Pill>}
+                  {d.status === "pending" && <Pill tone="medium">pending</Pill>}
+                  {d.lowQuality && <Pill tone="low">low-q scan</Pill>}
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="AI agent activity" subtitle="Last 24h">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-slate-600">Doc ingest</span>
+                <span className="num text-slate-900">23</span>
+              </div>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-slate-600">Extract + verify</span>
+                <span className="num text-slate-900">78</span>
+              </div>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-slate-600">Reconciliation</span>
+                <span className="num text-slate-900">19</span>
+              </div>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-slate-600">Anomaly flags</span>
+                <span className="num text-amber-700">7</span>
+              </div>
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-slate-600">CCH field maps</span>
+                <span className="num text-slate-900">15</span>
+              </div>
+            </div>
+          </Panel>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, delta, deltaTone = "ok", tone }) {
+  const dt = sevColor[deltaTone] || sevColor.ok;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">{label}</div>
+      <div className="mt-1 flex items-end justify-between">
+        <div className="num text-[22px] font-semibold text-slate-900">{value}</div>
+        {delta && <span className={`text-[11px] font-semibold ${dt.txt}`}>{delta}</span>}
+      </div>
+      <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>
+    </div>
+  );
+}
+
+function Panel({ title, subtitle, right, children }) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white">
+      <header className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-semibold text-slate-900">{title}</div>
+          {subtitle && <div className="text-[12px] text-slate-500 mt-0.5">{subtitle}</div>}
+        </div>
+        {right}
+      </header>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
+
+function ExceptionRow({ ex, onJump }) {
+  const c = sevColor[ex.severity];
+  return (
+    <button onClick={onJump} className="w-full text-left px-2 py-3 flex items-start gap-3 hover:bg-slate-50 rounded-md group">
+      <span className={`mt-1 inline-block w-2 h-2 rounded-full ${c.dot}`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-semibold text-slate-900">{ex.title}</span>
+          <Pill tone={ex.severity}>{ex.severity}</Pill>
+          <span className="text-[11px] text-slate-500">→ Line {ex.lineId}</span>
+        </div>
+        <div className="text-[12px] text-slate-600 mt-1 leading-relaxed">{ex.summary}</div>
+      </div>
+      <div className="text-slate-400 group-hover:text-slate-700"><Icon name="chevron" className="w-4 h-4 mt-2" /></div>
+    </button>
+  );
+}
+
+function SignRow({ name, role, done, date, note, blocked }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className={`w-5 h-5 rounded-full flex items-center justify-center ${done ? "bg-emerald-100" : blocked ? "bg-slate-100" : "bg-amber-100"}`}>
+        {done ? <Icon name="check" className="w-3 h-3 text-emerald-700" /> : <Icon name="clock" className={`w-3 h-3 ${blocked ? "text-slate-400" : "text-amber-700"}`} />}
+      </span>
+      <div className="flex-1 text-[12px]">
+        <div className="text-slate-800 font-medium flex items-center gap-1.5">{name}{note && <Pill tone="info">{note}</Pill>}</div>
+        <div className="text-[11px] text-slate-500">{done ? `Signed ${date}` : blocked ? "Awaiting reviewer" : "Pending"}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   FORM 1040 VIEW
+   ============================================================ */
+function Form1040({ selectedLineId, onSelectLine }) {
+  const grouped = useMemo(() => {
+    const g = {};
+    LINES.forEach(l => { (g[l.section] = g[l.section] || []).push(l); });
+    return g;
+  }, []);
+
+  const sections = [
+    { id: "income", label: "Income" },
+    { id: "agi", label: "Adjusted gross income" },
+    { id: "deductions", label: "Deductions & taxable income" },
+    { id: "tax", label: "Tax & credits" },
+    { id: "payments", label: "Payments & balance" },
+  ];
+
+  return (
+    <div className="p-6 max-w-[1080px] mx-auto fade-in">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">U.S. Individual Income Tax Return</div>
+          <h1 className="text-[22px] font-semibold text-slate-900 mt-0.5">Form 1040 · TY {CLIENT.taxYear}</h1>
+          <div className="text-[13px] text-slate-500 mt-1">
+            Click any value to inspect lineage · numbers shown reflect current CCH Axcess state
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-[12px]">
+          <Pill tone="ok" icon="check">In sync with CCH</Pill>
+          <button className="px-2.5 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5"><Icon name="download" className="w-3.5 h-3.5"/>Export PDF</button>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        {/* table head */}
+        <div className="grid grid-cols-[44px_1fr_120px_120px_90px_90px_28px] gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+          <div>Line</div>
+          <div>Description</div>
+          <div className="text-right">Current year</div>
+          <div className="text-right">Prior year</div>
+          <div className="text-center">Conf.</div>
+          <div className="text-center">Sources</div>
+          <div></div>
+        </div>
+
+        {sections.map(sec => (
+          <div key={sec.id}>
+            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">{sec.label}</div>
+            {(grouped[sec.id] || []).map(line => {
+              const isActive = selectedLineId === line.id;
+              const isFocus = line.focus;
+              return (
+                <button
+                  key={line.id}
+                  onClick={() => onSelectLine(line.id)}
+                  className={`ledger-row w-full grid grid-cols-[44px_1fr_120px_120px_90px_90px_28px] gap-2 px-3 py-2.5 border-b border-slate-100 text-left items-center ${isActive ? "active" : ""} ${isFocus && !isActive ? "bg-amber-50/40" : ""}`}
+                >
+                  <div className={`text-[12px] font-semibold ${line.calc ? "text-slate-400" : "text-slate-700"}`}>{line.id}</div>
+                  <div className="min-w-0">
+                    <div className={`text-[13px] truncate ${line.calc ? "text-slate-600" : "text-slate-900"} flex items-center gap-2`}>
+                      <span>{line.label}</span>
+                      {isFocus && <Pill tone="high" icon="flag">Reviewer focus</Pill>}
+                      {line.status === "review" && !isFocus && <Pill tone="high">review</Pill>}
+                      {line.status === "watch" && <Pill tone="medium">watch</Pill>}
+                    </div>
+                    {line.note && <div className="text-[11px] text-slate-500 mt-0.5 truncate">{line.note}</div>}
+                  </div>
+                  <div className={`num text-right text-[13px] ${line.value === 0 ? "text-slate-400" : "text-slate-900 font-medium"}`}>{line.value === 0 ? "—" : fmt(line.value)}</div>
+                  <div className={`num text-right text-[12px] ${line.py === 0 ? "text-slate-300" : "text-slate-500"}`}>{line.py === 0 ? "—" : fmt(line.py)}</div>
+                  <div className="flex justify-center items-center gap-1.5">
+                    <ConfBar value={line.conf} />
+                  </div>
+                  <div className="flex justify-center text-[12px] text-slate-500">
+                    {line.sources != null ? <span className="num">{line.sources}</span> : <span className="text-slate-300">—</span>}
+                  </div>
+                  <div className="text-slate-300"><Icon name="chevron" className="w-3.5 h-3.5"/></div>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 text-[11px] text-slate-500 flex items-center gap-4">
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-emerald-600 rounded-full"/>Confidence ≥ 95%</span>
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-amber-600 rounded-full"/>85–95%</span>
+        <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-red-700 rounded-full"/>&lt; 85%</span>
+        <span>· Calc lines greyed</span>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   LINEAGE PANEL (right side, slides in when a line is selected)
+   ============================================================ */
+function LineagePanel({ lineId, onClose, onOpenDoc }) {
+  const line = LINES.find(l => l.id === lineId);
+  const [tab, setTab] = useState("overview");
+
+  // For Line 2b we have the full rich data set; others show a slimmer placeholder.
+  const isRich = line && line.id === "2b";
+
+  if (!line) return null;
+
+  return (
+    <aside className="w-[520px] shrink-0 border-l border-slate-200 bg-white flex flex-col slide-in">
+      <header className="px-4 pt-4 pb-3 border-b border-slate-100">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Lineage inspector · Line {line.id}</div>
+            <div className="text-[15px] font-semibold text-slate-900 mt-0.5 leading-tight">{line.label}</div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><Icon name="x" className="w-4 h-4"/></button>
+        </div>
+        <div className="flex items-baseline gap-3 mt-3">
+          <div className="num text-[26px] font-semibold text-slate-900">{fmt(line.value)}</div>
+          {line.py != null && (
+            <div className="text-[12px] text-slate-500">
+              PY <span className="num text-slate-700">{fmt(line.py)}</span>
+              {line.py !== 0 && (
+                <span className={`ml-2 num font-semibold ${line.value / line.py - 1 >= 0.25 ? "text-red-700" : line.value / line.py - 1 >= 0.10 ? "text-amber-700" : "text-emerald-700"}`}>
+                  {signedPct(line.value / line.py - 1)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          <Pill tone={line.status === "review" ? "high" : line.status === "watch" ? "medium" : "ok"}>
+            {line.status === "review" ? "Needs review" : line.status === "watch" ? "Watch" : "Clean"}
+          </Pill>
+          <Pill tone="info">Confidence {pct(line.conf)}</Pill>
+          {line.sources != null && <Pill tone="info" icon="link">{line.sources} sources</Pill>}
+          <Pill tone="info">→ CCH · {ccshField(line.id)}</Pill>
+        </div>
+      </header>
+
+      <nav className="px-2 pt-2 border-b border-slate-100 flex items-center gap-1 text-[12px]">
+        {[
+          ["overview", "Overview"],
+          ["sources", `Sources${line.sources ? ` (${line.sources})` : ""}`],
+          ["ai", "AI actions"],
+          ["edits", "Edits"],
+          ["approval", "Approval"],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`px-2.5 py-1.5 rounded-md ${tab === id ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-500 hover:text-slate-900"}`}
+          >{label}</button>
+        ))}
+      </nav>
+
+      <div className="flex-1 overflow-auto scrollbar-thin p-4">
+        {isRich ? (
+          <>
+            {tab === "overview" && <Tab2bOverview onOpenDoc={onOpenDoc} />}
+            {tab === "sources" && <Tab2bSources onOpenDoc={onOpenDoc} />}
+            {tab === "ai" && <Tab2bAi />}
+            {tab === "edits" && <Tab2bEdits />}
+            {tab === "approval" && <Tab2bApproval />}
+          </>
+        ) : (
+          <SlimLineDetails line={line} />
+        )}
+      </div>
+
+      <footer className="border-t border-slate-100 p-3 flex items-center gap-2">
+        <button className="flex-1 text-[12px] font-semibold text-white py-2 rounded-md flex items-center justify-center gap-1.5" style={{ background: "var(--brand)" }}>
+          <Icon name="check" className="w-3.5 h-3.5"/> Accept value
+        </button>
+        <button className="text-[12px] font-medium text-slate-700 px-3 py-2 rounded-md border border-slate-200 hover:bg-slate-50 flex items-center gap-1.5">
+          <Icon name="flag" className="w-3.5 h-3.5"/> Push back to preparer
+        </button>
+        <button className="text-[12px] font-medium text-slate-700 px-3 py-2 rounded-md border border-slate-200 hover:bg-slate-50 flex items-center gap-1.5">
+          <Icon name="sign" className="w-3.5 h-3.5"/> Override
+        </button>
+      </footer>
+    </aside>
+  );
+}
+
+function ccshField(lineId) {
+  const map = {
+    "2b": "Interest > 1099-INT > Line 2b",
+    "1a": "Wages > W-2 > Box 1 sum",
+    "3a": "Dividends > Qualified",
+    "3b": "Dividends > Ordinary",
+    "7": "Capital gain > Sch D",
+    "12": "Itemized > Sch A",
+  };
+  return map[lineId] || `Line ${lineId}`;
+}
+
+/* ----------  Line 2b: Overview tab ---------- */
+function Tab2bOverview({ onOpenDoc }) {
+  const delta = TOTAL_2B - PY_2B;
+  return (
+    <div className="space-y-4">
+      {/* Anomaly banner */}
+      <div className="rounded-md border border-red-200 bg-red-50/70 p-3">
+        <div className="flex items-start gap-2">
+          <Icon name="alert" className="w-4 h-4 text-red-700 mt-0.5" />
+          <div>
+            <div className="text-[13px] font-semibold text-red-900">Anomaly · taxable interest up 85.6% YoY</div>
+            <div className="text-[12px] text-red-900/80 mt-0.5">
+              Δ <span className="num font-semibold">{fmt0(delta)}</span>. Decomposition: new Vanguard MM account contributes <span className="num">{fmt0(8945.30)}</span> (73% of delta); Fidelity organic growth <span className="num">{fmt0(3036.77)}</span> (25%); other <span className="num">$229</span> (2%).
+            </div>
+            <div className="text-[12px] mt-1.5 text-red-900/80">
+              <span className="font-semibold">AI verdict:</span> Explainable · new-account. <span className="font-semibold">Reviewer action:</span> verify Vanguard account opening doc and accept, or push back if economic substance is unclear.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Calculation breakdown */}
+      <section>
+        <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">How the number is built</div>
+        <div className="rounded-md border border-slate-200 bg-white">
+          {SOURCES_2B.map((s, i) => (
+            <button
+              key={s.id}
+              onClick={() => onOpenDoc(s.id)}
+              className="w-full grid grid-cols-[1fr_110px_60px_24px] gap-3 px-3 py-2.5 border-b border-slate-100 last:border-0 hover:bg-slate-50 text-left items-center"
+            >
+              <div className="min-w-0">
+                <div className="text-[13px] text-slate-900 font-medium truncate flex items-center gap-1.5">
+                  <span className="text-slate-400 num text-[11px] w-3 inline-block">{i+1}</span>
+                  {s.payer}
+                  {s.flags.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-dot" />}
+                </div>
+                <div className="text-[11px] text-slate-500 truncate">{s.account} · {s.docType}</div>
+              </div>
+              <div className="text-right num text-[13px] text-slate-900">{fmt(s.box1)}</div>
+              <div className="flex justify-center"><ConfBar value={s.confidence}/></div>
+              <div className="text-slate-300"><Icon name="chevron" className="w-3.5 h-3.5"/></div>
+            </button>
+          ))}
+          <div className="grid grid-cols-[1fr_110px_60px_24px] gap-3 px-3 py-2.5 bg-slate-50 items-center">
+            <div className="text-[12px] font-semibold text-slate-700">Sum → Form 1040, Line 2b</div>
+            <div className="text-right num text-[14px] font-semibold text-slate-900">{fmt(TOTAL_2B)}</div>
+            <div></div>
+            <div></div>
+          </div>
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-500">
+          <Icon name="link" className="w-3 h-3"/>
+          Mapped to CCH Axcess <span className="num text-slate-700">INT.1099INT[].Box1 → 1040.Line2b</span>
+        </div>
+      </section>
+
+      {/* Schedule B trigger */}
+      <section>
+        <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Schedule B</div>
+        <div className="rounded-md border border-slate-200 bg-white p-3 text-[12px] text-slate-700 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span>Total taxable interest exceeds $1,500</span>
+            <Pill tone="ok" icon="check">Sch B Part I attached</Pill>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Foreign account (Part III Q7a)</span>
+            <span className="text-slate-900 font-medium">No</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Foreign trust (Part III Q8)</span>
+            <span className="text-slate-900 font-medium">No</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Confidence breakdown */}
+      <section>
+        <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Confidence components</div>
+        <div className="rounded-md border border-slate-200 bg-white p-3 space-y-2">
+          <ConfRow label="Document extraction" value={0.94} note="weighted avg across 5 docs · SFCU drags" />
+          <ConfRow label="Source reconciliation" value={0.98} note="4/5 cross-matched to YE statements" />
+          <ConfRow label="Field mapping (CCH)" value={1.00} note="Direct field path, no override" />
+          <ConfRow label="Policy classification" value={0.92} note="SFCU Box 1/8 resolution applied" />
+          <ConfRow label="Anomaly resolution" value={0.85} note="Pending reviewer sign-off on YoY" />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ConfRow({ label, value, note }) {
+  return (
+    <div className="text-[12px]">
+      <div className="flex items-center justify-between">
+        <span className="text-slate-700">{label}</span>
+        <span className="num text-slate-900 font-medium">{pct(value)}</span>
+      </div>
+      <div className="conf-bar mt-1" style={{ width: "100%" }}>
+        <div style={{ width: `${value * 100}%`, background: value >= 0.95 ? "#047857" : value >= 0.85 ? "#b45309" : "#b91c1c" }} />
+      </div>
+      <div className="text-[11px] text-slate-500 mt-0.5">{note}</div>
+    </div>
+  );
+}
+
+/* ----------  Line 2b: Sources tab ---------- */
+function Tab2bSources({ onOpenDoc }) {
+  return (
+    <div className="space-y-3">
+      <div className="text-[12px] text-slate-600">
+        Five source documents aggregate to Line 2b. Click any row to open the document preview with extracted fields highlighted.
+      </div>
+      {SOURCES_2B.map(s => (
+        <SourceCard key={s.id} s={s} onOpenDoc={() => onOpenDoc(s.id)} />
+      ))}
+    </div>
+  );
+}
+
+function SourceCard({ s, onOpenDoc }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white overflow-hidden">
+      <div className="px-3 py-2.5 border-b border-slate-100 flex items-center justify-between">
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold text-slate-900 truncate">{s.payer}</div>
+          <div className="text-[11px] text-slate-500 truncate">{s.account} · TIN {s.payerTin}</div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {s.flags.map((f, i) => <Pill key={i} tone={f.level}>{f.label}</Pill>)}
+          <Pill tone={s.confidence >= 0.95 ? "ok" : s.confidence >= 0.85 ? "medium" : "high"}>{pct(s.confidence)}</Pill>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3 px-3 py-2.5 text-[12px]">
+        <div>
+          <div className="text-slate-500">Box 1 (Interest)</div>
+          <div className="num text-slate-900 font-semibold">{fmt(s.box1)}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Box 3 (US Treas)</div>
+          <div className="num text-slate-900">{fmt(s.box3)}</div>
+        </div>
+        <div>
+          <div className="text-slate-500">Box 8 (Tax-exempt)</div>
+          <div className="num text-slate-900">{fmt(s.box8)}</div>
+        </div>
+      </div>
+      <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-600 space-y-0.5">
+        <div className="flex justify-between"><span>Extracted</span><span className="num">{s.extractedAt}</span></div>
+        <div className="flex justify-between"><span>Source</span><span className="text-right truncate ml-3">{s.source}</span></div>
+        <div className="flex justify-between"><span>Match</span><span className="text-right truncate ml-3">{s.matchedTo}</span></div>
+        <div className="flex justify-between">
+          <span>PY value</span>
+          <span className="num">{s.py === 0 ? "— (new)" : fmt(s.py)}{s.pyDelta != null && s.py !== 0 ? <span className="ml-2 text-slate-500">{signedPct(s.pyDelta)}</span> : null}</span>
+        </div>
+      </div>
+      <div className="px-3 py-2 border-t border-slate-100 flex items-center justify-between">
+        <button onClick={onOpenDoc} className="text-[12px] text-slate-700 hover:text-slate-900 flex items-center gap-1.5">
+          <Icon name="eye" className="w-3.5 h-3.5"/> View document
+        </button>
+        <div className="text-[11px] text-slate-400">{s.id}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------  Line 2b: AI actions tab ---------- */
+function Tab2bAi() {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border border-violet-200 bg-violet-50/60 p-3 flex items-start gap-2">
+        <Icon name="bot" className="w-4 h-4 text-violet-700 mt-0.5"/>
+        <div className="text-[12px] text-violet-900">
+          <div className="font-semibold">Lattice agents that touched Line 2b</div>
+          <div className="mt-0.5">
+            <span className="font-mono">doc-ingest</span> · <span className="font-mono">extract</span> · <span className="font-mono">reconcile</span> · <span className="font-mono">policy</span> · <span className="font-mono">aggregate</span> · <span className="font-mono">map</span> · <span className="font-mono">anomaly</span> · <span className="font-mono">context</span>
+          </div>
+          <div className="mt-1 text-violet-800/80">Each agent has an audit log entry with the model, prompt hash, and tool calls — available in full audit export.</div>
+        </div>
+      </div>
+
+      <ol className="relative border-l border-slate-200 ml-2 space-y-3">
+        {AI_ACTIONS_2B.map((a, i) => (
+          <li key={i} className="ml-4 relative">
+            <span className={`absolute -left-[22px] top-1.5 w-3 h-3 rounded-full border-2 border-white ${a.level === "warn" ? "bg-amber-500" : a.level === "ok" ? "bg-emerald-500" : "bg-violet-500"}`} />
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">{a.agent}</span>
+              <span className="text-[11px] text-slate-400 num">{a.t}</span>
+              {a.level === "warn" && <Pill tone="medium">flag</Pill>}
+              {a.level === "ok" && <Pill tone="ok">ok</Pill>}
+            </div>
+            <div className="text-[12px] text-slate-700 mt-0.5 leading-relaxed">{a.text}</div>
+          </li>
+        ))}
+      </ol>
+
+      <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+        All agent runs are stored as an immutable chain. Full reasoning traces and prompt artifacts are available via <span className="underline cursor-pointer">audit export → engagement {CLIENT.engagement}</span>.
+      </div>
+    </div>
+  );
+}
+
+/* ----------  Line 2b: Edits tab ---------- */
+function Tab2bEdits() {
+  return (
+    <div className="space-y-3">
+      <div className="text-[12px] text-slate-600">
+        Human edits and notes on Line 2b. No value overrides applied — sources flow through unchanged.
+      </div>
+      {EDITS_2B.map((e, i) => (
+        <div key={i} className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[12px] font-semibold text-slate-900">{e.actor}</div>
+            <div className="text-[11px] text-slate-500 num">{e.t}</div>
+          </div>
+          {e.field ? (
+            <div className="mt-1.5 text-[12px] text-slate-700">
+              <span className="text-slate-500">{e.field}</span>: <span className="line-through text-slate-400 num">{e.before}</span> → <span className="num font-semibold">{e.after}</span>
+            </div>
+          ) : null}
+          <div className="text-[12px] text-slate-600 mt-1.5 leading-relaxed">{e.text}</div>
+        </div>
+      ))}
+      <button className="w-full text-[12px] text-slate-700 py-2 rounded-md border border-dashed border-slate-300 hover:bg-slate-50">
+        + Add reviewer note
+      </button>
+    </div>
+  );
+}
+
+/* ----------  Line 2b: Approval tab ---------- */
+function Tab2bApproval() {
+  return (
+    <div className="space-y-3">
+      <Panel title="Three-eye sign-off · Line 2b">
+        <div className="space-y-2.5">
+          <SignRow name="Alex Patel · Preparer" role="prep" done date="2026-03-11 16:42" />
+          <SignRow name="Jamie Okafor · Reviewer" role="rev" done={false} note="You" />
+          <SignRow name="Priya Raghavan · Manager" role="mgr" done={false} blocked />
+        </div>
+      </Panel>
+
+      <Panel title="What sign-off attests">
+        <ul className="text-[12px] text-slate-700 space-y-1.5 list-disc pl-4">
+          <li>You have inspected each of the 5 source documents and confirmed extracted Box 1 values match.</li>
+          <li>You accept the AI's explanation of the 85.6% YoY increase or have noted a follow-up.</li>
+          <li>Schedule B Part III foreign account answers were verified against client questionnaire.</li>
+          <li>CCH Axcess field <span className="num">INT.1099INT[].Box1 → 1040.Line2b</span> matches workpaper total.</li>
+        </ul>
+      </Panel>
+
+      <Panel title="Workpaper reference">
+        <div className="text-[12px] text-slate-700 space-y-1">
+          <div className="flex justify-between"><span className="text-slate-500">Workpaper</span><span className="num">WP-INT-2025.pdf</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Reference</span><span className="num">§B.2b</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Linked sources</span><span>5 docs · all attached</span></div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+/* ---------- Slim details for non-rich lines ---------- */
+function SlimLineDetails({ line }) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Summary</div>
+        <KeyVal k="Current year" v={line.value === 0 ? "—" : fmt(line.value)} mono />
+        <KeyVal k="Prior year" v={line.py === 0 ? "—" : fmt(line.py)} mono />
+        <KeyVal k="Confidence" v={pct(line.conf)} mono />
+        <KeyVal k="Sources" v={line.sources != null ? line.sources : "—"} mono />
+        <KeyVal k="CCH field" v={ccshField(line.id)} />
+        <KeyVal k="Status" v={<Pill tone={line.status === "review" ? "high" : line.status === "watch" ? "medium" : "ok"}>{line.status}</Pill>} />
+      </div>
+      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50/60 p-3 text-[12px] text-slate-600">
+        <Icon name="info" className="w-3.5 h-3.5 inline mr-1 mb-0.5 text-slate-500"/>
+        Detailed lineage views are wired up for <span className="font-semibold">Line 2b</span> in this prototype. Other lines surface the same data shape — sources, AI actions, edits, approval — in the production app.
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   DOCUMENT MODAL
+   ============================================================ */
+function DocModal({ sourceId, onClose }) {
+  if (!sourceId) return null;
+  const s = SOURCES_2B.find(x => x.id === sourceId);
+  if (!s) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 fade-in" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 flex items-center justify-center p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg w-[1000px] max-w-full h-[680px] max-h-full flex overflow-hidden shadow-2xl border border-slate-200" onClick={(e) => e.stopPropagation()}>
+          {/* Left: document preview */}
+          <div className="flex-1 bg-slate-100 border-r border-slate-200 flex flex-col">
+            <div className="px-4 py-2.5 border-b border-slate-200 bg-white flex items-center justify-between">
+              <div className="text-[12px] text-slate-700">
+                <span className="font-semibold">{s.docType}</span> · <span className="text-slate-500">{s.payer}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                <Pill tone="info">page 1/1</Pill>
+                <button className="px-2 py-1 rounded hover:bg-slate-100"><Icon name="download" className="w-3.5 h-3.5"/></button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-6">
+              <Document1099INT s={s}/>
+            </div>
+          </div>
+
+          {/* Right: extraction & lineage */}
+          <div className="w-[380px] flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Extracted fields</div>
+                <div className="text-[13px] font-semibold text-slate-900 mt-0.5">Mapped from page 1 → Form 1040 · Line 2b</div>
+              </div>
+              <button onClick={onClose} className="p-1.5 rounded hover:bg-slate-100 text-slate-500"><Icon name="x" className="w-4 h-4"/></button>
+            </div>
+            <div className="flex-1 overflow-auto scrollbar-thin p-4 space-y-3">
+              <div className="rounded-md border border-slate-200 bg-white p-3">
+                <ExtractRow label="Payer" value={s.payer} highlight />
+                <ExtractRow label="Payer TIN" value={s.payerTin} mono />
+                <ExtractRow label="Recipient" value="Chen, Margaret & David (joint)" />
+                <ExtractRow label="Account" value={s.account} mono />
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white p-3">
+                <ExtractRow label="Box 1 — Interest income" value={fmt(s.box1)} mono highlight pulled />
+                <ExtractRow label="Box 3 — US Treasury obligations" value={fmt(s.box3)} mono />
+                <ExtractRow label="Box 4 — Federal income tax withheld" value={fmt(s.fedWithheld)} mono />
+                <ExtractRow label="Box 8 — Tax-exempt interest" value={fmt(s.box8)} mono />
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white p-3 text-[12px]">
+                <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">AI pipeline</div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between"><span className="text-slate-600">OCR pass</span><span className="text-emerald-700 font-medium">passed</span></div>
+                  <div className="flex justify-between"><span className="text-slate-600">LLM verification</span><span className="text-emerald-700 font-medium">passed</span></div>
+                  <div className="flex justify-between"><span className="text-slate-600">Reconciliation</span><span className="text-emerald-700 font-medium">matched</span></div>
+                  <div className="flex justify-between"><span className="text-slate-600">Confidence</span><span className="num font-semibold">{pct(s.confidence)}</span></div>
+                </div>
+              </div>
+              {s.flags.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-900">
+                  <div className="font-semibold mb-1 flex items-center gap-1.5"><Icon name="alert" className="w-3.5 h-3.5"/>Flags on this source</div>
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    {s.flags.map((f, i) => <li key={i}>{f.label}</li>)}
+                  </ul>
+                </div>
+              )}
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-600">
+                <div className="font-semibold text-slate-700 mb-1">Provenance</div>
+                <div>Source: {s.source}</div>
+                <div>Extracted: <span className="num">{s.extractedAt}</span></div>
+                <div>Match: {s.matchedTo}</div>
+                <div>SHA256: <span className="num">{s.id.split("-")[1]}f4c2…a91</span></div>
+              </div>
+            </div>
+            <div className="p-3 border-t border-slate-100 flex gap-2">
+              <button className="flex-1 text-[12px] font-semibold text-white py-2 rounded-md" style={{ background: "var(--brand)" }}>Accept</button>
+              <button className="text-[12px] text-slate-700 px-3 py-2 rounded-md border border-slate-200 hover:bg-slate-50">Override</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExtractRow({ label, value, mono, highlight, pulled }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-slate-100 last:border-0 text-[12px]">
+      <div className="text-slate-600 flex items-center gap-1.5">
+        {pulled && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"/>}
+        {label}
+      </div>
+      <div className={`${mono ? "num" : ""} ${highlight ? "font-semibold text-slate-900" : "text-slate-800"} text-right`}>{value}</div>
+    </div>
+  );
+}
+
+/* ============================================================
+   DOCUMENT 1099-INT visual (mock)
+   ============================================================ */
+function Document1099INT({ s }) {
+  return (
+    <div className="mx-auto doc-paper border border-slate-300 shadow-sm w-[640px] aspect-[8.5/11] relative text-[10px] text-slate-900 p-5">
+      <div className="absolute top-4 right-4 text-[8px] text-slate-400">OMB No. 1545-0112</div>
+      <div className="text-[14px] font-bold tracking-tight">Form 1099-INT</div>
+      <div className="text-[10px] text-slate-600">Interest Income · {CLIENT.taxYear}</div>
+      <div className="border-b border-slate-300 mt-2 mb-3"></div>
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+        <div>
+          <div className="text-[8px] uppercase text-slate-500 tracking-wider">Payer's name, address, ZIP</div>
+          <div className="font-semibold mt-1">{s.payer}</div>
+          <div className="text-slate-600">1 Main Plaza, Suite 1200</div>
+          <div className="text-slate-600">San Francisco, CA 94105</div>
+        </div>
+        <div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="text-[8px] uppercase text-slate-500 tracking-wider">Payer's TIN</div>
+              <div className="num font-semibold mt-1">{s.payerTin}</div>
+            </div>
+            <div>
+              <div className="text-[8px] uppercase text-slate-500 tracking-wider">Recipient's TIN</div>
+              <div className="num font-semibold mt-1">•••-••-4521</div>
+            </div>
+          </div>
+          <div className="mt-2">
+            <div className="text-[8px] uppercase text-slate-500 tracking-wider">Recipient</div>
+            <div className="font-semibold mt-0.5">Chen, Margaret & David</div>
+            <div className="text-slate-600">2914 Walnut Grove Ln</div>
+            <div className="text-slate-600">Menlo Park, CA 94025</div>
+          </div>
+          <div className="mt-2">
+            <div className="text-[8px] uppercase text-slate-500 tracking-wider">Account number</div>
+            <div className="num mt-0.5">{s.account}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-b border-slate-300 my-3"></div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {/* Box 1 (highlighted) */}
+        <div className="relative">
+          <div className="absolute -inset-1 rounded-sm" style={{ background: "rgba(43,58,103,0.08)", border: "1px dashed var(--brand)" }}/>
+          <div className="relative p-1">
+            <div className="text-[8px] uppercase text-slate-700 tracking-wider font-semibold">1 · Interest income</div>
+            <div className="num text-[16px] font-semibold mt-0.5">{fmt(s.box1)}</div>
+            <div className="text-[8px] mt-0.5" style={{ color: "var(--brand)" }}>→ Form 1040, Line 2b</div>
+          </div>
+        </div>
+        <div className="p-1">
+          <div className="text-[8px] uppercase text-slate-500 tracking-wider">2 · Early withdrawal penalty</div>
+          <div className="num mt-0.5">$0.00</div>
+        </div>
+        <div className="p-1">
+          <div className="text-[8px] uppercase text-slate-500 tracking-wider">3 · Interest on US Savings Bonds / Treas</div>
+          <div className="num mt-0.5">{fmt(s.box3)}</div>
+        </div>
+        <div className="p-1">
+          <div className="text-[8px] uppercase text-slate-500 tracking-wider">4 · Federal income tax withheld</div>
+          <div className="num mt-0.5">{fmt(s.fedWithheld)}</div>
+        </div>
+        <div className="p-1">
+          <div className="text-[8px] uppercase text-slate-500 tracking-wider">5 · Investment expenses</div>
+          <div className="num mt-0.5">$0.00</div>
+        </div>
+        <div className="p-1">
+          <div className="text-[8px] uppercase text-slate-500 tracking-wider">6 · Foreign tax paid</div>
+          <div className="num mt-0.5">$0.00</div>
+        </div>
+        <div className="p-1">
+          <div className="text-[8px] uppercase text-slate-500 tracking-wider">7 · Foreign country / US possession</div>
+          <div className="mt-0.5">—</div>
+        </div>
+        <div className="p-1">
+          <div className="text-[8px] uppercase text-slate-500 tracking-wider">8 · Tax-exempt interest</div>
+          <div className={`num mt-0.5 ${s.id === "src-sfcu" ? "line-through text-slate-400" : ""}`}>{s.id === "src-sfcu" ? "$89.12" : fmt(s.box8)}</div>
+          {s.id === "src-sfcu" && <div className="text-[8px] mt-0.5 text-amber-700">AI: re-classified to Box 1 (see lineage)</div>}
+        </div>
+      </div>
+
+      <div className="absolute bottom-4 left-5 right-5 flex items-center justify-between text-[8px] text-slate-400">
+        <span>Department of the Treasury — Internal Revenue Service</span>
+        <span className="num">Doc ID: 1099INT-{s.id.toUpperCase()}-25</span>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   DOCUMENTS VIEW (very simple, supports navigation)
+   ============================================================ */
+function DocumentsView() {
+  return (
+    <div className="p-6 max-w-[1080px] mx-auto fade-in">
+      <h1 className="text-[22px] font-semibold text-slate-900">Document inventory</h1>
+      <div className="text-[13px] text-slate-500 mt-1 mb-4">13 documents · 1 missing · 1 pending · 1 low-quality scan</div>
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="grid grid-cols-[1fr_120px_120px_120px_1fr] gap-3 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+          <div>Document</div><div>Type</div><div>Status</div><div>Received</div><div>Linked lines</div>
+        </div>
+        {DOCS.map(d => (
+          <div key={d.id} className="grid grid-cols-[1fr_120px_120px_120px_1fr] gap-3 px-4 py-2.5 border-b border-slate-100 text-[13px] items-center">
+            <div className="flex items-center gap-2">
+              <Icon name="docs" className="w-3.5 h-3.5 text-slate-400"/>
+              <span className="text-slate-900">{d.name}</span>
+              {d.lowQuality && <Pill tone="low">low-q</Pill>}
+            </div>
+            <div className="text-slate-600">{d.type}</div>
+            <div>
+              {d.status === "missing" && <Pill tone="high">missing</Pill>}
+              {d.status === "pending" && <Pill tone="medium">pending</Pill>}
+              {d.status === "ingested" && <Pill tone="ok" icon="check">ingested</Pill>}
+            </div>
+            <div className="text-slate-500 num">{d.date || "—"}</div>
+            <div className="text-slate-700 text-[12px]">{d.linked.map(l => `Line ${l}`).join(" · ")}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SCHEDULES & ANALYTICS — minimal placeholders to keep nav coherent
+   ============================================================ */
+function SchedulesView() {
+  const scheds = [
+    { id: "B", name: "Schedule B · Interest & Dividends",  status: "attached", note: "Required (Line 2b > $1,500)" },
+    { id: "A", name: "Schedule A · Itemized deductions",   status: "attached", note: "1 missing receipt" },
+    { id: "D", name: "Schedule D · Capital gains & losses",status: "attached", note: "3 lots low basis confidence" },
+    { id: "1", name: "Schedule 1 · Additional income",      status: "attached", note: "K-1 from DC Consulting LLC" },
+    { id: "2", name: "Schedule 2 · Additional taxes",       status: "attached", note: "NIIT, Add'l Medicare" },
+  ];
+  return (
+    <div className="p-6 max-w-[1080px] mx-auto fade-in">
+      <h1 className="text-[22px] font-semibold text-slate-900">Schedules</h1>
+      <div className="text-[13px] text-slate-500 mt-1 mb-4">5 schedules attached to this return</div>
+      <div className="grid grid-cols-2 gap-3">
+        {scheds.map(s => (
+          <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-[14px] font-semibold text-slate-900">{s.name}</div>
+              <Pill tone="ok" icon="check">attached</Pill>
+            </div>
+            <div className="text-[12px] text-slate-500 mt-1">{s.note}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsView({ onJumpTo }) {
+  return (
+    <div className="p-6 max-w-[1080px] mx-auto fade-in">
+      <h1 className="text-[22px] font-semibold text-slate-900">YoY analytics</h1>
+      <div className="text-[13px] text-slate-500 mt-1 mb-4">Composite trend across CY {CLIENT.taxYear} vs accepted PY return</div>
+      <Panel title="Largest movements">
+        <div className="space-y-2">
+          {YOY.map(y => (
+            <div key={y.lineId} className="flex items-center gap-3 py-1.5">
+              <button onClick={() => onJumpTo(y.lineId)} className="text-[13px] text-slate-700 hover:text-slate-900 font-medium w-44 text-left">{y.label}</button>
+              <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden relative">
+                <div className="absolute inset-y-0 left-0 bg-slate-300" style={{ width: `${(y.py / Math.max(y.cy, y.py)) * 100}%` }} />
+                <div className="absolute inset-y-0 left-0" style={{ width: `${(y.cy / Math.max(y.cy, y.py)) * 100}%`, background: y.status === "high" ? "rgba(185,28,28,.6)" : y.status === "med" ? "rgba(180,83,9,.6)" : "rgba(30,64,175,.5)", mixBlendMode: "multiply" }} />
+              </div>
+              <div className="num text-[12px] text-slate-700 w-28 text-right">{fmt0(y.cy)}</div>
+              <div className={`num text-[12px] w-16 text-right ${y.status === "high" ? "text-red-700" : y.status === "med" ? "text-amber-700" : "text-slate-500"}`}>{signedPct(y.pct)}</div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+/* ============================================================
+   APP
+   ============================================================ */
+function App() {
+  const [view, setView] = useState("dashboard");
+  const [selectedLineId, setSelectedLineId] = useState(null);
+  const [openDocId, setOpenDocId] = useState(null);
+
+  const handleJump = (lineId) => {
+    setView("form1040");
+    setSelectedLineId(lineId);
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      <TopBar />
+      <div className="flex flex-1 overflow-hidden">
+        <LeftNav view={view} setView={setView} />
+        <main className="flex-1 overflow-auto scrollbar-thin">
+          {view === "dashboard" && <Dashboard onJumpTo={handleJump}/>}
+          {view === "form1040" && <Form1040 selectedLineId={selectedLineId} onSelectLine={setSelectedLineId} />}
+          {view === "docs" && <DocumentsView/>}
+          {view === "schedules" && <SchedulesView/>}
+          {view === "analytics" && <AnalyticsView onJumpTo={handleJump}/>}
+        </main>
+        {selectedLineId && view === "form1040" && (
+          <LineagePanel
+            lineId={selectedLineId}
+            onClose={() => setSelectedLineId(null)}
+            onOpenDoc={(srcId) => setOpenDocId(srcId)}
+          />
+        )}
+      </div>
+      <DocModal sourceId={openDocId} onClose={() => setOpenDocId(null)} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
